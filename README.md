@@ -155,7 +155,7 @@ HAMi exposes metrics for monitoring cluster accelerator usage. After installatio
 http://<scheduler-ip>:<monitor-port>/metrics
 ```
 
-The default monitor port is `31993`. You can change it with Helm values such as `--set devicePlugin.service.httpPort=<port>`.
+The default monitor port is `31993`. You can change it with Helm values such as `--set scheduler.service.monitorPort=<port>`.
 
 HAMi also provides:
 
