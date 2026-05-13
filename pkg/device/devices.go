@@ -18,7 +18,6 @@ package device
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -240,52 +239,65 @@ func GetDevices() map[string]Devices {
 
 func DecodeNodeDevices(str string) ([]*DeviceInfo, error) {
 	if !strings.Contains(str, OneContainerMultiDeviceSplitSymbol) {
-		return []*DeviceInfo{}, errors.New("node annotations not decode successfully")
+		return nil, fmt.Errorf("node annotation missing device separator")
 	}
 	tmp := strings.Split(str, OneContainerMultiDeviceSplitSymbol)
 	var retval []*DeviceInfo
 	for _, val := range tmp {
-		if strings.Contains(val, ",") {
-			items := strings.Split(val, ",")
-			if len(items) == 7 || len(items) == 9 {
-				count, _ := strconv.ParseInt(items[1], 10, 32)
-				devmem, _ := strconv.ParseInt(items[2], 10, 32)
-				devcore, _ := strconv.ParseInt(items[3], 10, 32)
-				health, _ := strconv.ParseBool(items[6])
-				numa, _ := strconv.Atoi(items[5])
-				mode := "hami-core"
-				index := 0
-				if len(items) == 9 {
-					index, _ = strconv.Atoi(items[7])
-					mode = items[8]
-				}
-				count32, err := safecast.Convert[int32](count)
-				if err != nil {
-					return []*DeviceInfo{}, errors.New("node annotations not decode successfully")
-				}
-				devmem32, err := safecast.Convert[int32](devmem)
-				if err != nil {
-					return []*DeviceInfo{}, errors.New("node annotations not decode successfully")
-				}
-				devcore32, err := safecast.Convert[int32](devcore)
-				if err != nil {
-					return []*DeviceInfo{}, errors.New("node annotations not decode successfully")
-				}
-				i := DeviceInfo{
-					ID:      items[0],
-					Count:   count32,
-					Devmem:  devmem32,
-					Devcore: devcore32,
-					Type:    items[4],
-					Numa:    numa,
-					Health:  health,
-					Mode:    mode,
-					Index:   uint(index),
-				}
-				retval = append(retval, &i)
-			} else {
-				return []*DeviceInfo{}, errors.New("node annotations not decode successfully")
+		if val == "" {
+			continue
+		}
+		if !strings.Contains(val, ",") {
+			return nil, fmt.Errorf("malformed node annotation segment: %q", val)
+		}
+		items := strings.Split(val, ",")
+		if len(items) == 7 || len(items) == 9 {
+			count, err := strconv.ParseInt(items[1], 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid count field: %w", err)
 			}
+			devmem, err := strconv.ParseInt(items[2], 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid memory field: %w", err)
+			}
+			devcore, err := strconv.ParseInt(items[3], 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid core field: %w", err)
+			}
+			health, err := strconv.ParseBool(items[6])
+			if err != nil {
+				return nil, fmt.Errorf("invalid health field: %w", err)
+			}
+			numa, err := strconv.Atoi(items[5])
+			if err != nil {
+				return nil, fmt.Errorf("invalid numa field: %w", err)
+			}
+			mode := "hami-core"
+			index := 0
+			if len(items) == 9 {
+				index, err = strconv.Atoi(items[7])
+				if err != nil {
+					return nil, fmt.Errorf("invalid index field: %w", err)
+				}
+				if index < 0 {
+					return nil, fmt.Errorf("index field must not be negative: %d", index)
+				}
+				mode = items[8]
+			}
+			i := DeviceInfo{
+				ID:      items[0],
+				Count:   int32(count),
+				Devmem:  int32(devmem),
+				Devcore: int32(devcore),
+				Type:    items[4],
+				Numa:    numa,
+				Health:  health,
+				Mode:    mode,
+				Index:   uint(index),
+			}
+			retval = append(retval, &i)
+		} else {
+			return nil, fmt.Errorf("unexpected field count %d in node annotation", len(items))
 		}
 	}
 	return retval, nil
